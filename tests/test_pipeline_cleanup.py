@@ -577,10 +577,12 @@ def test_mkpfs_compression_arguments_use_selected_level_and_default_half_cpus(
 
 def test_mkpfs_compression_arguments_use_reference_zlib_on_windows(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     settings = _settings(tmp_path)
     settings.compression_level = 3
     settings.compression_workers = 7
+    monkeypatch.setattr(pipeline, "maximum_logical_cpu_count", lambda: 8)
     assert pipeline.mkpfs_compression_arguments(
         settings, platform_name="win32"
     ) == [
