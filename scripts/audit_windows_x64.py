@@ -32,15 +32,30 @@ def main() -> int:
     parser.add_argument("application", type=Path)
     args = parser.parse_args()
     root = args.application.resolve()
+    project_root = Path(__file__).resolve().parents[1]
+    source_locales = (
+        project_root / "tools" / "ps4ffpsc" / "ps4ffpsc" / "locales"
+    )
+    bundled_locales = root / "_internal" / "ps4ffpsc" / "locales"
     required = [
         root / "PS4 FFPFSC.exe",
         root / "ps4ffpsc-worker.exe",
         root / "_internal" / "bin" / "ps4_pkg_extract.exe",
         root / "_internal" / "bin" / "ps4-dlc-patch.exe",
+        bundled_locales / "en.json",
+        bundled_locales / "ru.json",
+        bundled_locales / "zh_CN.json",
     ]
     missing = [str(path) for path in required if not path.is_file()]
     if missing:
         raise SystemExit("missing required bundled file(s): " + ", ".join(missing))
+    for locale in ("en", "ru", "zh_CN"):
+        source = source_locales / f"{locale}.json"
+        bundled = bundled_locales / f"{locale}.json"
+        if source.read_bytes() != bundled.read_bytes():
+            raise SystemExit(
+                f"bundled GUI locale differs from release source: {bundled}"
+            )
 
     checked = 0
     invalid: list[str] = []

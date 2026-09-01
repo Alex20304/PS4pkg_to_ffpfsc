@@ -21,9 +21,18 @@ GUI and command-line path do not have separate conversion implementations.
 Switching modes clears the previous inventory. The source PKGs remain in place
 and are opened read-only by the extractor.
 
-The header language selector switches the complete interface between Russian
-and English without restarting the application. The selection is persisted for
-the next launch.
+The header language selector is populated from standalone UTF-8 JSON catalogs
+in `tools/ps4ffpsc/ps4ffpsc/locales/`. English, Russian, and Simplified Chinese
+are bundled, and an additional catalog such as `de.json` is discovered without
+changing Python source. On first launch the GUI checks the system's ordered UI
+language preferences, then the regional locale, and selects the first matching
+catalog; it uses English when none match. A manual selection is persisted under
+the existing setting. Missing keys fall back to English; an unreadable or
+malformed catalog is ignored and cannot prevent the application from starting.
+GUI-owned controls, dialogs, progress/status text, and inventory labels use the
+selected catalog. Technical worker, extractor, and MkPFS diagnostic lines stay
+verbatim in the log so issue reports match the CLI and conversion behavior is
+not changed by presentation-layer localization.
 
 The scan path intentionally avoids reading every byte of every package. It
 reads package headers/metadata and records a cheap path/size/mtime scan identity.
@@ -138,7 +147,7 @@ selected source tree remains unchanged in every case.
 ## Launch and packaging
 
 Download and completely extract
-`PS4-FFPFSC-v0.2.8-windows-x64.zip`, then launch `PS4 FFPFSC.exe`. The
+`PS4-FFPFSC-v0.2.9-windows-x64.zip`, then launch `PS4 FFPFSC.exe`. The
 accompanying `_internal` directory and `ps4ffpsc-worker.exe` are required parts
 of the self-contained application.
 

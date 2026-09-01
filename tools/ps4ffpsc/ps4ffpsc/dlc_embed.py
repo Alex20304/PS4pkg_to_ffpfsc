@@ -50,7 +50,7 @@ def _package_type(item: dict[str, Any]) -> tuple[str, bool]:
     if item.get("source_kind") == "dump_tree" and category in {"ac", "al"}:
         return ("PSAC" if category == "ac" else "PSAL"), True
     raise DlcEmbedError(
-        "DLC package type is unavailable; rescan the source with the 0.2.8 "
+        "DLC package type is unavailable; rescan the source with the 0.2.9 "
         "extractor or use a dump whose param.sfo CATEGORY is ac/al"
     )
 
@@ -155,7 +155,7 @@ def find_dlc_helper(resource_root: Path) -> Path:
         if path.is_file() and (sys.platform == "win32" or os.access(path, os.X_OK)):
             return path
     raise DlcEmbedError(
-        "experimental DLC helper is unavailable; reinstall the complete 0.2.8 application"
+        "experimental DLC helper is unavailable; reinstall the complete 0.2.9 application"
     )
 
 

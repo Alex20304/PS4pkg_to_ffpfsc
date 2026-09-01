@@ -10,8 +10,16 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QProcess, QProcessEnvironment, QSettings, Qt, QTimer, QUrl
-from PySide6.QtGui import QColor, QDesktopServices, QFont, QIcon
+from PySide6.QtCore import (
+    QLocale,
+    QProcess,
+    QProcessEnvironment,
+    QSettings,
+    Qt,
+    QTimer,
+    QUrl,
+)
+from PySide6.QtGui import QColor, QDesktopServices, QFont, QIcon, QPalette
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -36,6 +44,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .i18n import (
+    ENGLISH_LOCALE,
+    TEXTS,
+    locale_display_name,
+    system_languages_or_english,
+    translate_catalog,
+)
 from .gui_model import (
     build_error_text,
     estimate_remaining_seconds,
@@ -73,7 +88,7 @@ from .util import path_is_within, paths_overlap
 
 
 APP_NAME = "PS4 FFPFSC"
-APP_VERSION = "0.2.8"
+APP_VERSION = "0.2.9"
 BUILD_STAGE_START = {1: 2.0, 2: 30.0, 3: 55.0, 4: 88.0, 5: 96.0}
 BUILD_STAGE_KEYS = {
     1: "stage_sources",
@@ -90,292 +105,60 @@ MKPFS_PHASE_KEYS = {
     "verify": "phase_verify",
     "compare": "phase_compare",
 }
-TEXTS = {
-    "ru": {
-        "subtitle": "Подготовка проверенных образов для ShadowMountPlus — локально и без изменения исходных файлов",
-        "about": "О программе",
-        "source_section": "1. Исходные PKG или распакованная игра",
-        "choose_pkg": "Выбрать PKG-файлы…",
-        "choose_folder": "Выбрать папку…",
-        "choose_dump": "Выбрать распакованную игру…",
-        "clear": "Очистить",
-        "scan": "Сканировать",
-        "storage_section": "2. Папки хранения",
-        "output_files": "Готовые образы",
-        "temp_files": "Временные файлы (по умолчанию /tmp)",
-        "temp_files_windows": "Временные файлы (по умолчанию %TEMP%)",
-        "reset_tmp": "Сбросить по умолчанию",
-        "games_section": "3. Найденные игры",
-        "summary_initial": "Сначала выберите источник и запустите сканирование",
-        "header_build": "Собрать",
-        "header_type": "TITLE_ID / тип",
-        "header_name": "Название / файл",
-        "header_version": "Версия",
-        "header_size": "Размер",
-        "log": "Журнал",
-        "clear_log": "Очистить журнал",
-        "output_format": "Формат образа:",
-        "format_ffpfsc": "FFPFSC — сжатый (по умолчанию)",
-        "format_exfat": "exFAT — без сжатия",
-        "dlc_mode": "Режим DLC:",
-        "dlc_mode_off": "Не добавлять DLC (по умолчанию)",
-        "dlc_mode_single_experimental": "Встроить DLC в один образ — экспериментально",
-        "dlc_experimental_note": "Встраивание DLC в один образ — экспериментальная функция",
-        "dlc_warning_title": "Экспериментальный режим DLC",
-        "dlc_warning_body": "DLC будут встроены в тот же образ, что и игра. Эта функция экспериментальна: совместимость и работа DLC на консоли пока не гарантируются. Продолжить сборку?",
-        "compression": "Степень сжатия:",
-        "compression_workers": "Потоки сжатия:",
-        "compression_level_none": "0 — без deflate-сжатия",
-        "compression_level_value": "Уровень {level}",
-        "compression_level_fast": "1 — быстрее, образ крупнее",
-        "compression_level_default": "7 — стандартное",
-        "compression_level_max": "9 — максимальное, медленнее",
-        "compression_threads": "По умолчанию {default} · максимум {maximum}",
-        "compression_not_applicable": "Для exFAT сжатие не используется",
-        "resume": "Продолжать прерванное",
-        "force": "Пересобрать существующее",
-        "keep_inner": "Сохранить внутренний exFAT",
-        "ready": "Готово",
-        "timing_idle": "Прошло 00:00 · осталось —",
-        "timing_calculating": "Прошло 00:00 · осталось: рассчитывается…",
-        "timing": "Прошло {elapsed} · осталось {remaining}",
-        "timing_stage": "Прошло {elapsed} · до конца распаковки {remaining}",
-        "calculating": "рассчитывается…",
-        "cancel": "Отменить",
-        "reveal": "Открыть папку результата",
-        "build_selected": "Собрать выбранные",
-        "check_readiness": "Проверить готовность",
-        "choose_pkg_title": "Выберите PS4 PKG",
-        "pkg_filter": "PlayStation 4 PKG (*.pkg *.PKG);;Все файлы (*)",
-        "choose_source_folder": "Выберите папку с PKG (подпапки будут просканированы)",
-        "choose_dump_folder": "Выберите корень распакованной игры или каталог с app/patch",
-        "choose_output": "Куда сохранять готовые образы",
-        "choose_temp": "Папка для временных файлов",
-        "free_space": "свободно {gib:.1f} GiB",
-        "directory_will_create": "каталог будет создан при сборке",
-        "source_not_selected": "Источник не выбран",
-        "source_empty": "PKG-файлы, папка с PKG или распакованная игра ещё не выбраны",
-        "source_recursive": "будут просмотрены все подпапки",
-        "source_dump": "готовое дерево игры; исходные файлы останутся без изменений",
-        "and_more": "… и ещё {count}",
-        "stage_word": "этап",
-        "stage_sources": "проверка источников и извлечение PKG при необходимости",
-        "stage_merge": "объединение base и patch",
-        "stage_compress": "сжатие FFPFSC",
-        "stage_exfat": "создание exFAT без сжатия",
-        "stage_verify": "проверка образа и обязательных файлов",
-        "stage_checksum_cleanup": "публикация результата и очистка",
-        "phase_scan": "анализ файлов",
-        "phase_exfat": "создание exFAT",
-        "phase_compress": "сжатие",
-        "phase_write": "запись образа",
-        "phase_verify": "проверка блоков",
-        "phase_compare": "сверка данных",
-        "processing": "обработка",
-        "game": "Игра",
-        "extract_pkg": "извлечение PKG",
-        "merge_pkg": "объединение PKG",
-        "cleanup_temp": "очистка временных файлов",
-        "stage_status": "{title} · этап {stage}/{total}: {action}",
-        "pkg_status": "{title} · этап 1/5: {action} {current}/{total} · {percent}% · {done} / {size}",
-        "merge_status": "{title} · этап 2/5: объединение PKG {current}/{total}",
-        "phase_status": "{title} · этап {stage}/5: {action} · {percent}%",
-        "cleanup_status": "{title} · этап 5/5: очистка временных файлов",
-        "scan_none": "Сканирование: источники не найдены",
-        "scan_progress": "Сканирование источников: {current}/{total}",
-        "scanning": "Сканирование…",
-        "scan_log": "Сканирование источников и чтение метаданных…",
-        "source_missing_title": "Источник не выбран",
-        "pkg_select_error": "Не удалось выбрать PKG",
-        "no_buildable": "Нет игры, готовой к сборке.\n\n{details}",
-        "select_buildable": "Отметьте хотя бы одну готовую к сборке игру.",
-        "build_unavailable": "Сборка пока невозможна",
-        "check_paths": "Проверьте пути",
-        "build_started": "Запущена сборка: {titles}. Исходные файлы не изменяются.",
-        "build_preparing": "{title} · подготовка к сборке",
-        "build_flow": "──── {title}: извлечение → объединение → {format} → проверка",
-        "worker_missing": "Не найден рабочий модуль",
-        "environment_unready": "Окружение не готово",
-        "venv_missing": "Не найден .venv. Один раз запустите scripts/bootstrap_macos.sh.",
-        "cli_missing": "Не найден CLI",
-        "process_start_error": "Не удалось запустить процесс",
-        "scan_error": "Ошибка сканирования",
-        "scan_failed_title": "Сканирование завершилось с ошибкой",
-        "exit_details": "Код {code}. Подробности находятся в журнале.",
-        "build_success_log": "{title}: сборка и проверка успешно завершены.",
-        "build_error_log": "{title}: ошибка — {error}",
-        "cancelled_log": "Операция отменена пользователем; временные данные можно продолжить позже.",
-        "process_error": "Ошибка процесса: {error}",
-        "read_results_error": "Ошибка чтения результатов",
-        "inventory_read_error": "Не удалось прочитать инвентарь",
-        "scan_complete": "Сканирование завершено",
-        "found_log": "Найдено: источников {packages}, игр {games}, готово к сборке {buildable}, неподдерживаемых {unsupported}.",
-        "patches_tooltip": "Будут применены патчи: {patches}",
-        "none": "нет",
-        "duplicate": "Дубликат: {path}",
-        "unsupported": "Неподдерживаемые или зашифрованные PKG: {count}",
-        "inventory_summary": "Игр: {games} · к сборке: {buildable} · выбрано ≈ {selected_size} · неподдерживаемых: {unsupported}",
-        "approximate_size": "≈ {size}",
-        "size_tooltip": "Размер выбранного источника: {size} ({bytes} байт)",
-        "cancelled": "Отменено",
-        "completed_errors": "Завершено с ошибками",
-        "unknown_error": "неизвестная ошибка",
-        "not_all_built": "Не все образы собраны",
-        "success_count": "Успешно: {count}.\n\n{details}",
-        "all_ready": "Все выбранные образы готовы",
-        "build_complete_title": "Сборка завершена",
-        "build_complete_message": "Успешно собрано и проверено: {count}.\n\n{path}",
-        "cancelling": "Отмена…",
-        "cancel_requested": "Запрошена отмена. Экстрактор, MkPFS и дочерние процессы останавливаются.",
-        "process_tree_setup_failed": "Не удалось создать безопасную группу процессов Windows. Операция не запущена.",
-        "about_title": "О программе {app}",
-        "about_body": "Приложение для конвертации PS4 PKG в проверенные FFPFSC-образы для ShadowMountPlus Playstation 5<br><br>Автор: Ильдар Садыков <a href=\"https://github.com/SadykovIV/PS4pkg_to_ffpfsc\">SadykovIV/PS4pkg_to_ffpfsc</a>",
-        "operation_running": "Операция выполняется",
-        "close_running": "Остановить текущую операцию и закрыть программу?",
-    },
-    "en": {
-        "subtitle": "Build verified ShadowMountPlus images locally without modifying source files",
-        "about": "About",
-        "source_section": "1. Source PKGs or unpacked game",
-        "choose_pkg": "Choose PKG files…",
-        "choose_folder": "Choose folder…",
-        "choose_dump": "Choose unpacked game…",
-        "clear": "Clear",
-        "scan": "Scan",
-        "storage_section": "2. Storage folders",
-        "output_files": "Completed images",
-        "temp_files": "Temporary files (default: /tmp)",
-        "temp_files_windows": "Temporary files (default: %TEMP%)",
-        "reset_tmp": "Reset to default",
-        "games_section": "3. Discovered games",
-        "summary_initial": "Select a source and start scanning",
-        "header_build": "Build",
-        "header_type": "TITLE_ID / type",
-        "header_name": "Title / file",
-        "header_version": "Version",
-        "header_size": "Size",
-        "log": "Log",
-        "clear_log": "Clear log",
-        "output_format": "Image format:",
-        "format_ffpfsc": "FFPFSC — compressed (default)",
-        "format_exfat": "exFAT — uncompressed",
-        "dlc_mode": "DLC mode:",
-        "dlc_mode_off": "Do not include DLC (default)",
-        "dlc_mode_single_experimental": "Embed DLC into one image — experimental",
-        "dlc_experimental_note": "Embedding DLC into one image is experimental",
-        "dlc_warning_title": "Experimental DLC mode",
-        "dlc_warning_body": "DLC will be embedded into the same image as the game. This feature is experimental: console compatibility and DLC operation are not yet guaranteed. Continue building?",
-        "compression": "Compression level:",
-        "compression_workers": "Compression workers:",
-        "compression_level_none": "0 — no deflate compression",
-        "compression_level_value": "Level {level}",
-        "compression_level_fast": "1 — faster, larger image",
-        "compression_level_default": "7 — standard",
-        "compression_level_max": "9 — maximum, slower",
-        "compression_threads": "Default {default} · maximum {maximum}",
-        "compression_not_applicable": "Compression is not used for exFAT",
-        "resume": "Resume interrupted work",
-        "force": "Rebuild existing output",
-        "keep_inner": "Keep inner exFAT",
-        "ready": "Ready",
-        "timing_idle": "Elapsed 00:00 · remaining —",
-        "timing_calculating": "Elapsed 00:00 · remaining: calculating…",
-        "timing": "Elapsed {elapsed} · remaining {remaining}",
-        "timing_stage": "Elapsed {elapsed} · extraction remaining {remaining}",
-        "calculating": "calculating…",
-        "cancel": "Cancel",
-        "reveal": "Open output folder",
-        "build_selected": "Build selected",
-        "check_readiness": "Check readiness",
-        "choose_pkg_title": "Select PS4 PKGs",
-        "pkg_filter": "PlayStation 4 PKG (*.pkg *.PKG);;All files (*)",
-        "choose_source_folder": "Select a PKG folder (subfolders will be scanned)",
-        "choose_dump_folder": "Select a flat unpacked game root or an app/patch directory",
-        "choose_output": "Select the output folder",
-        "choose_temp": "Select the temporary files folder",
-        "free_space": "{gib:.1f} GiB free",
-        "directory_will_create": "directory will be created during build",
-        "source_not_selected": "Source not selected",
-        "source_empty": "No PKGs, PKG folder, or unpacked game selected",
-        "source_recursive": "all subfolders will be scanned",
-        "source_dump": "ready game tree; source files will remain unchanged",
-        "and_more": "… and {count} more",
-        "stage_word": "stage",
-        "stage_sources": "check sources and extract PKGs when required",
-        "stage_merge": "merge base and patches",
-        "stage_compress": "compress FFPFSC",
-        "stage_exfat": "create uncompressed exFAT",
-        "stage_verify": "verify the image and required files",
-        "stage_checksum_cleanup": "publish the result and clean up",
-        "phase_scan": "scan files",
-        "phase_exfat": "create exFAT",
-        "phase_compress": "compress",
-        "phase_write": "write image",
-        "phase_verify": "verify blocks",
-        "phase_compare": "compare data",
-        "processing": "processing",
-        "game": "Game",
-        "extract_pkg": "extract PKG",
-        "merge_pkg": "merge PKG",
-        "cleanup_temp": "clean temporary files",
-        "stage_status": "{title} · stage {stage}/{total}: {action}",
-        "pkg_status": "{title} · stage 1/5: {action} {current}/{total} · {percent}% · {done} / {size}",
-        "merge_status": "{title} · stage 2/5: merge PKG {current}/{total}",
-        "phase_status": "{title} · stage {stage}/5: {action} · {percent}%",
-        "cleanup_status": "{title} · stage 5/5: clean temporary files",
-        "scan_none": "Scanning: no sources found",
-        "scan_progress": "Scanning sources: {current}/{total}",
-        "scanning": "Scanning…",
-        "scan_log": "Scanning sources and reading metadata…",
-        "source_missing_title": "Source not selected",
-        "pkg_select_error": "Could not select PKG",
-        "no_buildable": "No game is ready to build.\n\n{details}",
-        "select_buildable": "Select at least one buildable game.",
-        "build_unavailable": "Build is not available",
-        "check_paths": "Check the selected paths",
-        "build_started": "Build started: {titles}. Source files will not be modified.",
-        "build_preparing": "{title} · preparing build",
-        "build_flow": "──── {title}: extract → merge → {format} → verify",
-        "worker_missing": "Worker module not found",
-        "environment_unready": "Environment is not ready",
-        "venv_missing": ".venv was not found. Run scripts/bootstrap_macos.sh once.",
-        "cli_missing": "CLI not found",
-        "process_start_error": "Could not start the worker",
-        "scan_error": "Scan error",
-        "scan_failed_title": "Scanning failed",
-        "exit_details": "Exit code {code}. See the log for details.",
-        "build_success_log": "{title}: build and verification completed successfully.",
-        "build_error_log": "{title}: error — {error}",
-        "cancelled_log": "Operation cancelled; temporary data can be resumed later.",
-        "process_error": "Worker error: {error}",
-        "read_results_error": "Could not read results",
-        "inventory_read_error": "Could not read inventory",
-        "scan_complete": "Scanning completed",
-        "found_log": "Found: {packages} sources, {games} games, {buildable} buildable, {unsupported} unsupported.",
-        "patches_tooltip": "Patches to apply: {patches}",
-        "none": "none",
-        "duplicate": "Duplicate: {path}",
-        "unsupported": "Unsupported or encrypted PKGs: {count}",
-        "inventory_summary": "Games: {games} · buildable: {buildable} · selected ≈ {selected_size} · unsupported: {unsupported}",
-        "approximate_size": "≈ {size}",
-        "size_tooltip": "Selected source size: {size} ({bytes} bytes)",
-        "cancelled": "Cancelled",
-        "completed_errors": "Completed with errors",
-        "unknown_error": "unknown error",
-        "not_all_built": "Some images were not built",
-        "success_count": "Successful: {count}.\n\n{details}",
-        "all_ready": "All selected images are ready",
-        "build_complete_title": "Build completed",
-        "build_complete_message": "Successfully built and verified: {count}.\n\n{path}",
-        "cancelling": "Cancelling…",
-        "cancel_requested": "Cancellation requested. Extractor, MkPFS and child processes are stopping.",
-        "process_tree_setup_failed": "The safe Windows process group could not be created. The operation was not started.",
-        "about_title": "About {app}",
-        "about_body": "Application for converting PS4 PKGs into verified FFPFSC images for ShadowMountPlus PlayStation 5<br><br>Author: Ildar Sadykov <a href=\"https://github.com/SadykovIV/PS4pkg_to_ffpfsc\">SadykovIV/PS4pkg_to_ffpfsc</a>",
-        "operation_running": "Operation in progress",
-        "close_running": "Stop the current operation and close the application?",
-    },
-}
+
+
+class ThemedComboBox(QComboBox):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._apply_popup_theme()
+
+    def _apply_popup_theme(self) -> None:
+        background = QColor("#181e27")
+        foreground = QColor("#e8edf5")
+        selection = QColor("#334f9d")
+        palette = self.view().palette()
+        for role in (
+            QPalette.ColorRole.Base,
+            QPalette.ColorRole.AlternateBase,
+            QPalette.ColorRole.Window,
+            QPalette.ColorRole.Button,
+        ):
+            palette.setColor(role, background)
+        palette.setColor(QPalette.ColorRole.Text, foreground)
+        palette.setColor(QPalette.ColorRole.WindowText, foreground)
+        palette.setColor(QPalette.ColorRole.ButtonText, foreground)
+        palette.setColor(QPalette.ColorRole.Highlight, selection)
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
+
+        view = self.view()
+        view.setFrameShape(QFrame.Shape.NoFrame)
+        view.setContentsMargins(0, 0, 0, 0)
+        view.setPalette(palette)
+        view.viewport().setPalette(palette)
+        view.viewport().setAutoFillBackground(True)
+
+        popup = view.window()
+        popup.setObjectName("comboPopup")
+        popup.setContentsMargins(0, 0, 0, 0)
+        popup.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+        popup.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        popup.setAutoFillBackground(True)
+        popup.setPalette(palette)
+        popup.setStyleSheet(
+            "QFrame#comboPopup {"
+            "background-color: #181e27;"
+            "border: 1px solid #374355;"
+            "border-radius: 6px;"
+            "padding: 0;"
+            "margin: 0;"
+            "}"
+        )
+
+    def showPopup(self) -> None:
+        self._apply_popup_theme()
+        super().showPopup()
+        self._apply_popup_theme()
+
 
 class MainWindow(QMainWindow):
     def __init__(self, root: Path, resources: Path | None = None) -> None:
@@ -383,8 +166,19 @@ class MainWindow(QMainWindow):
         self.root = root
         self.resources = resources or root
         self.settings = QSettings()
-        stored_language = self.settings.value("language", "ru", type=str)
-        self.language = stored_language if stored_language in TEXTS else "ru"
+        if self.settings.contains("language"):
+            stored_language = self.settings.value("language", type=str)
+            self.language = (
+                stored_language
+                if stored_language in TEXTS
+                else ENGLISH_LOCALE
+            )
+        else:
+            system_locale = QLocale()
+            self.language = system_languages_or_english(
+                TEXTS,
+                (*system_locale.uiLanguages(), system_locale.name()),
+            )
         self.translated_widgets: list[tuple[QWidget, str]] = []
         self.stage_state: tuple[str, dict[str, Any]] = ("ready", {})
         self.summary_state: tuple[str, dict[str, Any]] = ("summary_initial", {})
@@ -433,8 +227,7 @@ class MainWindow(QMainWindow):
         self._update_controls()
 
     def _t(self, key: str, **values: Any) -> str:
-        text = TEXTS[self.language].get(key, TEXTS["ru"].get(key, key))
-        return text.format(**values) if values else text
+        return translate_catalog(TEXTS, self.language, key, **values)
 
     def _bind_text(self, widget: QWidget, key: str) -> QWidget:
         self.translated_widgets.append((widget, key))
@@ -549,8 +342,8 @@ class MainWindow(QMainWindow):
                 self._t("header_type"),
                 self._t("header_name"),
                 self._t("header_version"),
-                "Patch",
-                "DLC",
+                self._t("header_patch"),
+                self._t("header_dlc"),
                 self._t("header_size"),
             ]
         )
@@ -595,10 +388,12 @@ class MainWindow(QMainWindow):
         header.addWidget(mark)
         header.addLayout(title_box)
         header.addStretch()
-        self.language_combo = QComboBox()
-        self.language_combo.addItem("Русский", "ru")
-        self.language_combo.addItem("English", "en")
-        self.language_combo.setCurrentIndex(0 if self.language == "ru" else 1)
+        self.language_combo = ThemedComboBox()
+        for locale in TEXTS:
+            self.language_combo.addItem(locale_display_name(locale), locale)
+        self.language_combo.setCurrentIndex(
+            max(0, self.language_combo.findData(self.language))
+        )
         self.language_combo.setFixedWidth(105)
         self.language_combo.currentIndexChanged.connect(self._change_language)
         header.addWidget(self.language_combo)
@@ -698,8 +493,8 @@ class MainWindow(QMainWindow):
                 self._t("header_type"),
                 self._t("header_name"),
                 self._t("header_version"),
-                "Patch",
-                "DLC",
+                self._t("header_patch"),
+                self._t("header_dlc"),
                 self._t("header_size"),
             ]
         )
@@ -755,7 +550,7 @@ class MainWindow(QMainWindow):
         options.addWidget(self.keep_inner_check, 3, 2)
         output_format_label = self._bind_text(QLabel(), "output_format")
         options.addWidget(output_format_label, 0, 0)
-        self.output_format_combo = QComboBox()
+        self.output_format_combo = ThemedComboBox()
         self.output_format_combo.addItem(self._t("format_ffpfsc"), "ffpfsc")
         self.output_format_combo.addItem(self._t("format_exfat"), "exfat")
         self.output_format_combo.currentIndexChanged.connect(
@@ -764,7 +559,7 @@ class MainWindow(QMainWindow):
         options.addWidget(self.output_format_combo, 0, 1)
         compression_label = self._bind_text(QLabel(), "compression")
         options.addWidget(compression_label, 0, 2)
-        self.compression_combo = QComboBox()
+        self.compression_combo = ThemedComboBox()
         for level in range(0, 10):
             self.compression_combo.addItem(
                 self._compression_level_text(level),
@@ -797,7 +592,7 @@ class MainWindow(QMainWindow):
         options.addWidget(self.compression_threads_label, 1, 2, 1, 2)
         dlc_mode_label = self._bind_text(QLabel(), "dlc_mode")
         options.addWidget(dlc_mode_label, 2, 0)
-        self.dlc_combo = QComboBox()
+        self.dlc_combo = ThemedComboBox()
         self.dlc_combo.addItem(self._t("dlc_mode_off"), "off")
         self.dlc_combo.addItem(
             self._t("dlc_mode_single_experimental"),
@@ -894,6 +689,16 @@ class MainWindow(QMainWindow):
             QComboBox, QSpinBox {
                 background: #202936; border: 1px solid #374355; border-radius: 6px;
                 padding: 6px 10px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #181e27; color: #e8edf5;
+                border: 1px solid #374355; outline: 0;
+                padding: 0; margin: 0;
+                selection-background-color: #334f9d;
+                selection-color: #ffffff;
+            }
+            QComboBox QAbstractItemView::item {
+                min-height: 26px; padding: 4px 10px; border: 0;
             }
             QProgressBar {
                 background: #202936; border: none; border-radius: 6px;
@@ -1163,7 +968,13 @@ class MainWindow(QMainWindow):
                 preview += " " + self._t(
                     "and_more", count=len(self.pkg_files) - 3
                 )
-            self.source_label.setText(f"{len(self.pkg_files)} PKG: {preview}")
+            self.source_label.setText(
+                self._t(
+                    "selected_pkg_files",
+                    count=len(self.pkg_files),
+                    preview=preview,
+                )
+            )
             self.source_label.setToolTip("\n".join(str(path) for path in self.pkg_files))
         elif self.source_folder and self.source_mode == "dump":
             self.source_label.setText(
@@ -1566,15 +1377,9 @@ class MainWindow(QMainWindow):
                 source = self.source_folder.expanduser().resolve(strict=False)
                 workspace = temporary_workspace(self.temp_dir)
                 if paths_overlap(source, workspace):
-                    raise ValueError(
-                        "unpacked game source overlaps the temporary workspace; "
-                        "choose a different temporary directory"
-                    )
+                    raise ValueError(self._t("dump_source_overlaps_workspace"))
                 if path_is_within(self.output_dir, source):
-                    raise ValueError(
-                        "output directory must not be inside the selected "
-                        "unpacked game source"
-                    )
+                    raise ValueError(self._t("output_inside_dump_source"))
             self.output_dir.mkdir(parents=True, exist_ok=True)
             workspace = temporary_workspace(self.temp_dir)
             workspace.mkdir(parents=True, exist_ok=True)
@@ -1915,22 +1720,22 @@ class MainWindow(QMainWindow):
             self.games_tree.addTopLevelItem(top)
 
             groups = (
-                ("base", "BASE"),
-                ("patches", "PATCH"),
-                ("dlc", "DLC"),
-                ("unknown", "UNKNOWN"),
+                ("base", "type_base"),
+                ("patches", "type_patch"),
+                ("dlc", "type_dlc"),
+                ("unknown", "type_unknown"),
             )
-            for key, label in groups:
+            for key, label_key in groups:
                 for package in game.get(key, []):
                     source_kind = str(package.get("source_kind") or "pkg")
                     item_label = (
-                        "TREE"
+                        self._t("type_tree")
                         if source_kind == "dump_tree" and key == "base"
-                        else "PATCH TREE"
+                        else self._t("type_patch_tree")
                         if source_kind == "dump_tree" and key == "patches"
-                        else "BACKPORT"
+                        else self._t("type_backport")
                         if package.get("patch_role") == "additional_layer"
-                        else label
+                        else self._t(label_key)
                     )
                     child = QTreeWidgetItem(
                         [
@@ -1995,7 +1800,7 @@ class MainWindow(QMainWindow):
             blocked = QTreeWidgetItem(
                 [
                     "",
-                    "UNSUPPORTED",
+                    self._t("type_unsupported"),
                     self._t("unsupported", count=len(unsupported)),
                     "",
                     "",
@@ -2017,7 +1822,7 @@ class MainWindow(QMainWindow):
                 child = QTreeWidgetItem(
                     [
                         "",
-                        "PKG",
+                        self._t("type_pkg"),
                         Path(package.get("path", "")).name,
                         "—",
                         "",

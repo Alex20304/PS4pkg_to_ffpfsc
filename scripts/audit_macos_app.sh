@@ -12,6 +12,20 @@ if [[ ! -d "${APP_PATH}" ]]; then
   exit 1
 fi
 
+PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+for locale in en ru zh_CN; do
+  locale_path="${APP_PATH}/Contents/Resources/ps4ffpsc/locales/${locale}.json"
+  source_locale="${PROJECT_ROOT}/tools/ps4ffpsc/ps4ffpsc/locales/${locale}.json"
+  if [[ ! -f "${locale_path}" ]]; then
+    echo "Missing bundled GUI locale: ${locale_path}" >&2
+    exit 1
+  fi
+  if ! cmp -s "${source_locale}" "${locale_path}"; then
+    echo "Bundled GUI locale differs from release source: ${locale_path}" >&2
+    exit 1
+  fi
+done
+
 bad_arch=0
 bad_link=0
 bad_minos=0

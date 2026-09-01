@@ -6,7 +6,7 @@ PROJECT_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 BUILD_ROOT="${PROJECT_ROOT}/build-release"
 RELEASE_ROOT="${PROJECT_ROOT}/release"
 APP_PATH="${BUILD_ROOT}/dist/PS4 FFPFSC.app"
-VERSION="0.2.8"
+VERSION="0.2.9"
 BUILD_CACHE="${PS4FFPSC_BUILD_CACHE:-${TMPDIR:-/tmp}/ps4ffpsc-build-cache}"
 DEPLOYMENT_TARGET="13.0"
 

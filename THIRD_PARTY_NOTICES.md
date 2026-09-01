@@ -20,6 +20,8 @@ Copyright PSBrew and listed contributors. Licensed under GPL-3.0.
 Vendored from official commit
 `ce62fdc63dca02175dbb5bce45c4d7c75df6ec01` as the command-line/core source
 needed by this project; the upstream GUI and release assets are not included.
+A documented local Windows fix propagates an explicitly selected compression
+backend to spawned worker processes without changing the container format.
 See `LICENSES/MkPFS-GPL-3.0.txt` and `third_party/mkpfs/LICENSE`.
 
 ## ps4-eboot-dlc-patcher patch core

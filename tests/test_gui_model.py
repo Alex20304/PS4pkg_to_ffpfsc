@@ -21,6 +21,7 @@ from ps4ffpsc.gui_model import (
     source_cli_arguments,
     temporary_cli_arguments,
 )
+from ps4ffpsc.i18n import TEXTS
 
 
 def test_selected_pkg_files_are_deduplicated_and_keep_order(tmp_path: Path) -> None:
@@ -205,6 +206,36 @@ def test_orphan_game_explains_missing_base_pkg() -> None:
         {"warnings": ["orphan_package"], "conflicts": []}, "en"
     )
     assert "base PKG is missing" in english
+
+
+def test_incompatible_dlc_warning_is_localized() -> None:
+    game = {"warnings": ["incompatible_dlc_package"], "conflicts": []}
+
+    assert game_block_reason(game, "en") == TEXTS["en"][
+        "block_incompatible_dlc_package"
+    ]
+    assert game_block_reason(game, "ru") == TEXTS["ru"][
+        "block_incompatible_dlc_package"
+    ]
+    assert game_block_reason(game, "zh_CN") == TEXTS["zh_CN"][
+        "block_incompatible_dlc_package"
+    ]
+
+
+def test_custom_locale_uses_english_fallback_for_gui_model_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setitem(TEXTS, "zh_CN", {"block_not_ready": "尚未准备好"})
+
+    reason = game_block_reason(
+        {"warnings": ["orphan_package"], "conflicts": []},
+        "zh_CN",
+    )
+
+    assert reason == TEXTS["en"]["block_orphan_package"]
+    assert build_error_text(None, "CUSA12878", 2, "zh_CN") == (
+        "exit code 2; see the log for details"
+    )
 
 
 def test_build_error_text_reads_worker_json_error() -> None:

@@ -1,5 +1,6 @@
 # Runtime/build dependencies pinned for the macOS arm64 and Windows x64 releases.
-# MkPFS 1.0.0 at audited upstream commit ce62fdc, vendored as source:
+# MkPFS 1.0.0 at audited upstream commit ce62fdc plus the documented local
+# Windows worker-backend propagation patch, vendored as source:
 -e ./third_party/mkpfs
 cryptography==49.0.0
 zlib-ng==1.0.0

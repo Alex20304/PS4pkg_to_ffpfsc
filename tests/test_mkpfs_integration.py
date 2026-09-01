@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from mkpfs import pfs as mkpfs_pfs
 
 from ps4ffpsc.pipeline import (
     Settings,
@@ -34,11 +35,44 @@ def _make_npbind() -> bytes:
     return bytes(data)
 
 
+def test_spawned_mkpfs_workers_receive_the_parent_compression_backend(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.bin"
+    source.write_bytes(b"source")
+    initialized: list[str] = []
+    monkeypatch.setattr(
+        mkpfs_pfs.comp,
+        "init_worker",
+        initialized.append,
+    )
+    monkeypatch.setattr(
+        mkpfs_pfs.comp,
+        "get_backend_name",
+        lambda: "zlib",
+    )
+
+    mkpfs_pfs._init_pfsc_block_worker_for_pool(source, "zlib")
+
+    assert initialized == ["zlib"]
+    assert mkpfs_pfs._compression_worker_initargs() == ("zlib",)
+    handle = mkpfs_pfs._PFSC_WORKER_SOURCE_HANDLE
+    if handle is not None:
+        handle.close()
+    monkeypatch.setattr(mkpfs_pfs, "_PFSC_WORKER_SOURCE_HANDLE", None)
+    monkeypatch.setattr(mkpfs_pfs, "_PFSC_WORKER_SOURCE_PATH", None)
+
+
 @pytest.mark.integration
-@pytest.mark.parametrize("compression_level", [0, 9])
+@pytest.mark.parametrize(
+    ("compression_level", "use_windows_backend_policy"),
+    [(0, False), (9, False), (7, True)],
+)
 def test_mkpfs_nested_exfat_build_verify_and_deep_unpack(
     tmp_path: Path,
     compression_level: int,
+    use_windows_backend_policy: bool,
 ) -> None:
     root = Path(__file__).resolve().parents[1]
     settings = Settings(
@@ -59,7 +93,7 @@ def test_mkpfs_nested_exfat_build_verify_and_deep_unpack(
     )
     (source / "sce_sys" / "param.json").write_bytes(build_param_json("CUSA12345", "Тест"))
     (source / "данные.bin").write_bytes(b"unicode")
-    output = tmp_path / "synthetic.ffpfsc.partial"
+    output = tmp_path / "STAR WARS™ Battlefront® [v01.00].ffpfsc.partial"
     mkpfs = mkpfs_command(settings)
     process = subprocess.run(
         [
@@ -71,7 +105,12 @@ def test_mkpfs_nested_exfat_build_verify_and_deep_unpack(
             "PS5",
             "--inode-bits",
             "32",
-            *mkpfs_compression_arguments(settings),
+            *mkpfs_compression_arguments(
+                settings,
+                platform_name=(
+                    "win32" if use_windows_backend_policy else None
+                ),
+            ),
             str(source),
             str(output),
         ],
@@ -92,7 +131,7 @@ def test_mkpfs_nested_exfat_build_verify_and_deep_unpack(
     }
 
     # Detection follows the on-disk signature, not a misleading extension.
-    misnamed = tmp_path / f"synthetic-{compression_level}.exfat"
+    misnamed = tmp_path / f"STAR WARS™ Battlefront®-{compression_level}.exfat"
     output.replace(misnamed)
     standalone = verify_artifact(settings, misnamed)
     assert standalone["verified"]

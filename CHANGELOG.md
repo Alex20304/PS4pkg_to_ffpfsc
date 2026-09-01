@@ -11,6 +11,48 @@ self-contained and require neither Python nor external applications.
 
 ## Русский
 
+### 0.2.9
+
+#### Добавлено
+
+- Переводы GUI вынесены из `gui.py` в отдельные UTF-8 JSON-каталоги. В
+  поставку входят английский, русский и перевод элементов интерфейса,
+  диалогов, статусов и списка игр на упрощённый китайский.
+- Технические строки worker, extractor и MkPFS сохраняются в журнале без
+  перевода, чтобы диагностика совпадала с CLI и conversion pipeline не менялся.
+- Первый запуск проверяет языки интерфейса системы, затем региональную локаль,
+  и выбирает первый доступный каталог, иначе английский; ранее сохранённый
+  ручной выбор остаётся приоритетным.
+- Английский README стал основной страницей проекта, а русская версия сохранена
+  в отдельном `README_RU.md`.
+- Автономные сборки и их аудиты теперь явно включают и проверяют все штатные
+  файлы локализации.
+
+#### Исправлено
+
+- Неполный, отсутствующий или повреждённый каталог локали не блокирует запуск:
+  недостающие строки берутся из английского каталога, затем используется ключ.
+- У выпадающих списков GUI устранены белые полосы системного оформления над и
+  под тёмным списком элементов.
+- В Windows временный staging-путь extractor для названий с не-ASCII символами
+  использует стабильный `TITLE_ID`, поэтому `Sekiro™: Shadows Die Twice` не
+  передаёт `™` extractor в сгенерированном каталоге. Проверенное дерево затем
+  атомарно переносится в обычный возобновляемый workspace; итоговое имя
+  сохраняет допустимый Unicode, а запрещённое двоеточие нормализуется.
+- В Windows MkPFS использует эталонный zlib-backend для сжатого FFPFSC как
+  митигацию сообщённой ошибки проверки PFSC-потока.
+- Публичные аргументы командной строки и этапы конвертации не изменены.
+
+#### Проверено
+
+- У всех трёх штатных каталогов совпадают 168 ключей, плейсхолдеры и
+  спецификаторы форматирования.
+- Регрессионный тест подтверждает не зависящий от названия staging-подпуть из
+  ASCII-идентификаторов с `TITLE_ID` для Windows-названия
+  `Sekiro™: Shadows Die Twice`.
+- Интеграционный тест принудительно проверяет Windows zlib-путь, сборку по
+  Unicode-пути, проверку и распаковку синтетического контейнера.
+
 ### 0.2.8
 
 #### Добавлено
@@ -260,6 +302,49 @@ self-contained and require neither Python nor external applications.
 ---
 
 ## English
+
+### 0.2.9
+
+#### Added
+
+- GUI translations moved out of `gui.py` into standalone UTF-8 JSON catalogs.
+  The distribution includes English, Russian, and Simplified Chinese for GUI
+  controls, dialogs, statuses, and the game inventory.
+- Technical worker, extractor, and MkPFS lines remain verbatim in the log so
+  diagnostics match the CLI and the conversion pipeline stays unchanged.
+- First launch checks ordered system UI languages, then the regional locale,
+  and selects the first available catalog, otherwise English; a saved manual
+  choice remains authoritative.
+- The English README is now the project landing page, with the Russian version
+  preserved separately in `README_RU.md`.
+- Self-contained builds and release audits now explicitly bundle and verify all
+  built-in locale files.
+
+#### Fixed
+
+- An incomplete, missing, or malformed locale catalog no longer blocks startup:
+  missing strings fall back to English and then to the translation key.
+- Combo-box popups no longer show white native-style strips above and below
+  their dark item list.
+- On Windows, titles containing non-ASCII characters use a stable `TITLE_ID`
+  for the extractor's temporary staging path, so a title such as
+  `Sekiro™: Shadows Die Twice` does not put `™` in its generated directory.
+  The verified tree is then moved atomically into the ordinary resumable
+  workspace; the published filename preserves legal Unicode and normalizes the
+  forbidden colon.
+- On Windows, MkPFS selects the reference zlib backend for compressed FFPFSC as
+  a mitigation for the reported PFSC stream-verification failure.
+- The public command-line arguments and conversion stages remain unchanged.
+
+#### Verified
+
+- All three built-in catalogs have the same 168 keys, placeholders, and format
+  specifications.
+- Regression coverage confirms a title-independent staging subpath composed of
+  ASCII identifiers and `TITLE_ID` for the Windows title
+  `Sekiro™: Shadows Die Twice`.
+- An integration test forces the Windows zlib path, builds at a Unicode host
+  path, verifies the image, and unpacks the synthetic container.
 
 ### 0.2.8
 

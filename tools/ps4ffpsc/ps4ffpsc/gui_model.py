@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 from typing import Any, Iterable
 
+from .i18n import translate
 from .runtime import temporary_workspace
 
 PROGRESS_PREFIX = "PS4FFPSC_PROGRESS "
@@ -14,6 +15,14 @@ _SCAN_TOTAL_RE = re.compile(
 )
 _SCAN_ITEM_RE = re.compile(r"\binspecting (?:PKG|unpacked game source):")
 _BUILD_STAGE_RE = re.compile(r"\bstage (\d+)/(\d+):")
+GAME_BLOCK_REASON_KEYS = {
+    "orphan_package": "block_orphan_package",
+    "conflicting_base_packages": "block_conflicting_base_packages",
+    "incompatible_package": "block_incompatible_package",
+    "incompatible_dlc_package": "block_incompatible_dlc_package",
+    "unknown_package_kind": "block_unknown_package_kind",
+    "invalid_patch_app_version": "block_invalid_patch_app_version",
+}
 
 
 def normalize_pkg_files(
@@ -29,22 +38,19 @@ def normalize_pkg_files(
         if key in seen:
             continue
         if path.suffix.lower() != ".pkg":
-            message = (
-                f"selected file does not have a .pkg extension: {path}"
-                if language == "en"
-                else f"выбран файл без расширения .pkg: {path}"
+            raise ValueError(
+                translate(
+                    "model_pkg_extension_error",
+                    language,
+                    path=path,
+                )
             )
-            raise ValueError(message)
         if not path.is_file():
             raise FileNotFoundError(path)
         seen.add(key)
         result.append(path)
     if not result:
-        raise ValueError(
-            "no PKG files selected"
-            if language == "en"
-            else "не выбрано ни одного PKG-файла"
-        )
+        raise ValueError(translate("model_no_pkg_files", language))
     return tuple(result)
 
 
@@ -58,31 +64,19 @@ def validate_source(
         return mode, normalize_pkg_files(pkg_files, language), None
     if mode == "folder":
         if folder is None or not str(folder).strip():
-            raise ValueError(
-                "PKG folder is not selected"
-                if language == "en"
-                else "не выбрана папка с PKG"
-            )
+            raise ValueError(translate("model_pkg_folder_missing", language))
         path = Path(folder).expanduser().resolve()
         if not path.is_dir():
             raise NotADirectoryError(path)
         return mode, (), path
     if mode == "dump":
         if folder is None or not str(folder).strip():
-            raise ValueError(
-                "unpacked game folder is not selected"
-                if language == "en"
-                else "не выбрана папка с распакованной игрой"
-            )
+            raise ValueError(translate("model_dump_folder_missing", language))
         path = Path(folder).expanduser().resolve()
         if not path.is_dir():
             raise NotADirectoryError(path)
         return mode, (), path
-    raise ValueError(
-        f"unknown source mode: {mode}"
-        if language == "en"
-        else f"неизвестный режим источника: {mode}"
-    )
+    raise ValueError(translate("model_unknown_source_mode", language, mode=mode))
 
 
 def source_cli_arguments(
@@ -223,9 +217,7 @@ def build_error_text(
             error = result.get("error") or result.get("reason")
             if isinstance(error, str) and error.strip():
                 return error.strip()
-    if language == "en":
-        return f"exit code {exit_code}; see the log for details"
-    return f"код {exit_code}; подробности находятся в журнале"
+    return translate("model_build_exit_error", language, code=exit_code)
 
 
 def package_version_text(package: dict[str, Any]) -> str:
@@ -238,46 +230,17 @@ def game_block_reason(game: dict[str, Any], language: str = "ru") -> str:
     reasons = [*game.get("conflicts", []), *game.get("warnings", [])]
     translated: list[str] = []
     for reason in reasons:
-        if reason == "orphan_package":
-            translated.append(
-                "base PKG is missing (category gd); patch and DLC require the base game"
-                if language == "en"
-                else "нет base PKG (категория gd); patch и DLC без основной игры собрать нельзя"
-            )
-        elif reason == "conflicting_base_packages":
-            translated.append(
-                "multiple different base PKGs were found"
-                if language == "en"
-                else "найдено несколько разных base PKG"
-            )
-        elif reason == "incompatible_package":
-            translated.append(
-                "package region or CONTENT_ID does not match"
-                if language == "en"
-                else "регион или CONTENT_ID пакетов не совпадает"
-            )
-        elif reason == "unknown_package_kind":
-            translated.append(
-                "one or more PKG types were not recognized"
-                if language == "en"
-                else "тип одного или нескольких PKG не распознан"
-            )
-        elif reason == "invalid_patch_app_version":
-            translated.append(
-                "a patch has a missing or invalid APP_VER"
-                if language == "en"
-                else "у одного из patch отсутствует или некорректен APP_VER"
-            )
+        if reason in GAME_BLOCK_REASON_KEYS:
+            translated.append(translate(GAME_BLOCK_REASON_KEYS[reason], language))
         elif reason.startswith("conflicting_patch_version:"):
             translated.append(
-                (
-                    "multiple different patches have version "
-                    if language == "en"
-                    else "несколько разных patch одной версии "
+                translate(
+                    "block_conflicting_patch_version",
+                    language,
+                    version=reason.partition(":")[2],
                 )
-                + reason.partition(":")[2]
             )
         else:
             translated.append(reason)
-    fallback = "game is not ready to build" if language == "en" else "игра не готова к сборке"
+    fallback = translate("block_not_ready", language)
     return "; ".join(translated) if translated else fallback

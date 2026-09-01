@@ -10,7 +10,7 @@ $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $BuildRoot = Join-Path $ProjectRoot "build-release-windows"
 $ReleaseRoot = Join-Path $ProjectRoot "release"
 $AppPath = Join-Path $BuildRoot "dist\PS4 FFPFSC"
-$Version = "0.2.8"
+$Version = "0.2.9"
 
 if (-not $IsWindows) {
     throw "This release script must run on Windows."

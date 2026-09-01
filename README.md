@@ -1,148 +1,148 @@
 # PS4 FFPFSC
 
-**Языки / Languages:** **Русский** · [English](README_EN.md)
+**Languages:** **English** · [Русский](README_RU.md)
 
-**Документация:** [Русская](docs/ru/README.md) ·
-[English](docs/README.md)
+**Documentation:** [English](docs/README.md) ·
+[Русская](docs/ru/README.md)
 
-PS4 FFPFSC — приложение для преобразования поддерживаемых PS4 PKG или уже
-распакованной PS4-игры в образы для **ShadowMountPlus**:
+PS4 FFPFSC converts supported PS4 PKGs or an already unpacked PS4 game into
+images for **ShadowMountPlus**:
 
-- `.ffpfsc` — сжатый образ;
-- `.exfat` — несжатый raw exFAT-образ.
+- `.ffpfsc` — compressed image;
+- `.exfat` — uncompressed raw exFAT image.
 
-Программа объединяет базовую игру и обновления, проверяет структуру результата
-и не изменяет исходные PKG или выбранное распакованное дерево. В версии 0.2.8
-также доступна отключённая по умолчанию экспериментальная сборка выбранных DLC
-в единый образ игры.
+The application combines a base game and updates, validates the resulting
+layout, and never modifies the source PKGs or the selected unpacked tree.
+Version 0.2.8 also provides an experimental, opt-in mode that places selected
+DLC in the same image as the game.
 
 > [!WARNING]
-> Проект находится в активной разработке. Совместимость со всеми играми пока не гарантируется. Даже успешно собранный образ может не запуститься на PS5.
+> This project is under active development. Compatibility with every game is not guaranteed. Even a successfully built image may still fail to start on a PS5.
 
-## Известные проблемы
+## Known issues
 
-- **Ошибка регистрации трофеев:**
+- **Trophy registration failure:**
   `Trophy registration failed. errcode=0x80551618`.
-  Из-за неё некоторые игры не запускаются, в том числе **Metro 2033**.
-- **Beyond: Two Souls:** русская голосовая озвучка в настоящий момент не воспроизводится.
-- **DLC (экспериментально):** режим единого образа отключён по умолчанию,
-  совместим не со всеми играми и типами DLC и может потребовать изменения
-  копии игровых исполняемых файлов. Исходные PKG не меняются. Успешная сборка
-  и статическая проверка не гарантируют обнаружение DLC или запуск игры на PS5.
-- Сжатый FFPFSC может работать хуже в играх, которые постоянно загружают большие объёмы данных.
+  This error can prevent some games from launching, including **Metro 2033**.
+- **Beyond: Two Souls:** the Russian voice-over currently does not play.
+- **DLC (experimental):** single-image DLC is disabled by default, does not
+  support every game or DLC type, and may modify copies of game executables.
+  Source PKGs remain unchanged. A successful build and static verification do
+  not guarantee that a game will detect its DLC or start on a PS5.
+- Compressed FFPFSC images may perform worse in games that continuously stream large amounts of data.
 
-## Возможности
+## Features
 
-- графический интерфейс на русском и английском языках;
-- выбор отдельных PKG, целой папки или уже распакованной игры;
-- автоматическая группировка base, patch, явно обозначенных backport-слоёв и DLC;
-- обнаружение дубликатов; неподдерживаемые невыбранные PKG не блокируют игру;
-- создание FFPFSC или raw exFAT;
-- сохранение итогового `param.sfo` без переписывания, перенос всех имеющихся
-  локализованных `TITLE_00…29` и ненулевых `USER_DEFINED_PARAM_1…4` в
-  совместимый `param.json`;
-- Unicode-пути Windows, включая кириллицу и `™`;
-- экспериментальная упаковка выбранных DLC в один образ игры, отключённая по
-  умолчанию;
-- настройка уровня сжатия и количества потоков;
-- прогресс, прошедшее время и ETA;
-- безопасная отмена операции;
-- продолжение прерванной сборки;
-- готовые автономные сборки для Windows x64 и macOS ARM64.
+- graphical interface in English, Russian, and Simplified Chinese;
+- standalone JSON locale catalogs with safe English fallback;
+- system UI-language selection on first launch, while preserving a saved choice;
+- selection of individual PKGs, an entire folder, or an unpacked game;
+- automatic grouping of base, patch, explicit backport layers, and DLC;
+- duplicate detection; unchecked rejected PKGs do not block a selected game;
+- FFPFSC and raw exFAT output;
+- byte-for-byte preservation of the final `param.sfo`, with every available
+  localized `TITLE_00…29` and non-zero `USER_DEFINED_PARAM_1…4` projected into
+  a compatible `param.json`;
+- Windows Unicode paths, including Cyrillic and `™`;
+- experimental opt-in packaging of selected DLC in one game image;
+- configurable compression level and worker thread count;
+- progress, elapsed time, and ETA;
+- safe cancellation;
+- resume support for interrupted builds;
+- self-contained releases for Windows x64 and macOS ARM64.
 
-## Установка
+## Installation
 
-Скачайте последний архив в разделе **Releases**. Оба архива самодостаточны и
-не требуют установленного Python или внешних приложений.
+Download the latest archive from the **Releases** section. Both archives are
+self-contained and require neither Python nor external applications.
 
 ### Windows x64
 
-1. Полностью распакуйте `PS4-FFPFSC-v0.2.8-windows-x64.zip`.
-2. Запустите `PS4 FFPFSC.exe`.
-3. Оставьте остальные файлы рядом с программой.
+1. Fully extract `PS4-FFPFSC-v0.2.9-windows-x64.zip`.
+2. Run `PS4 FFPFSC.exe`.
+3. Keep the remaining files next to the executable.
 
-При первом запуске Microsoft Defender SmartScreen может запросить дополнительное подтверждение, поскольку сборка не подписана коммерческим сертификатом.
+Microsoft Defender SmartScreen may require manual confirmation on first launch because the build is not signed with a commercial certificate.
 
 ### macOS ARM64
 
-1. Распакуйте `PS4-FFPFSC-v0.2.8-macos-arm64.zip`.
-2. Перенесите `PS4 FFPFSC.app` в `/Applications`.
-3. При первом запуске используйте **Control-клик → Открыть**.
+1. Extract `PS4-FFPFSC-v0.2.9-macos-arm64.zip`.
+2. Move `PS4 FFPFSC.app` to `/Applications`.
+3. On first launch, use **Control-click → Open**.
 
-Текущая сборка подписана ad-hoc.
+The current build uses ad-hoc signing.
 
-## Как пользоваться
+## How to use
 
-1. Выберите отдельные PKG, папку с играми или распакованную игру. Для
-   распакованного источника поддерживается корень с `eboot.bin` и
-   `sce_sys/param.sfo`, а также контейнер `app/` с необязательным `patch/`.
-2. Укажите папку для готовых образов.
-3. Нажмите **«Сканировать»** и проверьте найденные base, patch, backport и DLC.
-   Неподдерживаемый неотмеченный PKG не блокирует выбранную игру; точные
-   дубликаты отключаются по умолчанию, а явный `backport`/`Fix5.05`
-   применяется после обычного update той же версии.
-4. Выберите формат: **FFPFSC** или **raw exFAT**. Для FFPFSC также задайте
-   уровень и количество потоков сжатия.
-5. Для обычной проверенной сборки оставьте экспериментальный режим DLC
-   выключенным. Включайте единый образ с DLC только осознанно: его работа
-   зависит от конкретной игры и должна проверяться на PS5.
-6. Нажмите **«Собрать выбранные»**.
-7. Скопируйте готовый образ на USB-накопитель и добавьте его путь в ShadowMountPlus.
+1. Select individual PKGs, a folder containing games, or an unpacked game. An
+   unpacked source can be a root with `eboot.bin` and `sce_sys/param.sfo`, or
+   an `app/` container with an optional `patch/` directory.
+2. Choose the output folder.
+3. Click **Scan** and review the detected base, patch, backport, and DLC items.
+   An unchecked rejected PKG does not block the selected game; exact duplicates
+   are disabled by default, and an explicit `backport`/`Fix5.05` layer follows
+   the ordinary update with the same version.
+4. Select **FFPFSC** or **raw exFAT**. For FFPFSC, also choose the compression
+   level and worker count.
+5. Leave experimental DLC disabled for the normal verified build. Enable the
+   single-image DLC mode only deliberately: compatibility is game-specific and
+   must be tested on a PS5.
+6. Click **Build selected**.
+7. Copy the resulting image to a USB drive and add its path to ShadowMountPlus.
 
-В режиме PKG необходим базовый пакет с `CATEGORY=gd`. Если найдены только
-обновления или DLC, приложение сообщит об отсутствии базовой игры.
+PKG mode requires a base package with `CATEGORY=gd`. If only updates or DLC are
+found, the application reports that the base game is missing.
 
-## Исходники и временные файлы
+## Sources and temporary files
 
-Исходные PKG и распакованное дерево используются только для чтения. При
-объединении готового дерева программа применяет hardlink или обычное
-копирование, но никогда не перемещает исходные файлы. Временный каталог игры
-удаляется только после полностью успешной сборки; при ошибке проверенное
-состояние сохраняется для продолжения.
+Source PKGs and unpacked trees are read-only. When merging an unpacked tree,
+the application uses hardlinks or ordinary copies and never moves source
+files. The per-game temporary directory is removed only after a fully
+successful build; verified state remains available for resume after a failure.
 
-## Результат
+## Output
 
-Для каждой игры создаются:
+For each game, the application creates:
 
 ```text
-<имя>.ffpfsc или <имя>.exfat
-<имя>.<формат>.manifest.json
-<имя>.<формат>.shadowmount.txt
+<name>.ffpfsc or <name>.exfat
+<name>.<format>.manifest.json
+<name>.<format>.shadowmount.txt
 ```
 
-Путь к образу можно добавить через `scanpath=` или указать полностью в:
+Add the image using `scanpath=` or place its full path in:
 
 ```text
 /data/shadowmount/manual.lst
 ```
 
-Журнал ShadowMountPlus находится здесь:
+The ShadowMountPlus log is located at:
 
 ```text
 /data/shadowmount/debug.log
 ```
 
-`static_shadowmount_compatible=true` означает, что структура образа прошла статическую проверку. Это не является гарантией запуска игры на PS5.
+`static_shadowmount_compatible=true` means that the image layout passed static validation. It does not guarantee that the game will start on a PS5.
 
-## Что программа не делает
+## What the application does not do
 
-Программа не ищет и не скачивает внешние ключи, не обходит DRM, не скачивает
-игры и не преобразует неподдерживаемые или зашифрованные retail PKG. Только в
-явно включённом экспериментальном режиме DLC приложение читает данные права из
-`license.dat` самого выбранного поддерживаемого дополнения, держит их в памяти
-и передаёт локальному вспомогательному процессу через стандартный ввод. Исходные
-PKG и выбранное распакованное дерево при этом не изменяются, а необработанные
-данные права не записываются в журналы, отчёты или временные JSON-файлы.
+The application does not search for or download external keys, bypass DRM,
+download games, or convert unsupported or encrypted retail PKG files. Only the
+explicitly enabled experimental DLC mode reads entitlement data from the
+selected supported add-on's own `license.dat`, keeps it in memory, and passes it
+to the local helper through standard input. Source PKGs and the selected
+unpacked tree remain unchanged, and raw entitlement data is not written to
+logs, reports, or temporary JSON files.
 
-Такие файлы получают статус `unsupported_or_encrypted_pkg`, после чего обработка остальных PKG продолжается.
+Such files are marked as `unsupported_or_encrypted_pkg`, and processing continues with the remaining PKG files.
 
-## Проверенный запуск
+## Verified launch
 
-Образ **Journey v01.01**, созданный этой программой, был успешно запущен и проверен на PS5 **26 июля 2026 года**.
+A **Journey v01.01** image created by this application was successfully launched and tested on a PS5 on **July 26, 2026**.
 
-Это подтверждает работоспособность pipeline для конкретного образа, но не гарантирует совместимость с другими играми.
+This confirms that the pipeline works for that specific image, but it does not guarantee compatibility with other games.
 
-## Сборка из исходников на macOS ARM64
+## Building from source on macOS ARM64
 
 ```bash
 ./scripts/bootstrap_macos.sh
@@ -150,27 +150,27 @@ PKG и выбранное распакованное дерево при это�
 open "build-release/dist/PS4 FFPFSC.app"
 ```
 
-Для запуска версии для разработки:
+To run the development version:
 
 ```bash
 ./ps4ffpsc-gui.command
 ```
 
-Команды CLI можно посмотреть через:
+To view the available CLI commands:
 
 ```bash
 ./ps4ffpsc --help
 ```
 
-Для распакованной игры доступны те же проверки и сборка без extractor:
+An unpacked game uses the same validation and build flow without the extractor:
 
 ```bash
-./ps4ffpsc scan --dump-dir "/путь/CUSA12345"
-./ps4ffpsc build CUSA12345 --dump-dir "/путь/CUSA12345"
+./ps4ffpsc scan --dump-dir "/games/CUSA12345"
+./ps4ffpsc build CUSA12345 --dump-dir "/games/CUSA12345"
 ```
 
-## Сообщение об ошибке
+## Reporting an issue
 
-При создании Issue укажите название игры, `TITLE_ID`, версию, типы использованных PKG, выбранный формат и точный текст ошибки. Также приложите `manifest.json`, `shadowmount.txt` и соответствующий фрагмент `/data/shadowmount/debug.log`.
+When opening an Issue, include the game name, `TITLE_ID`, version, package types, selected format, and exact error message. Also attach `manifest.json`, `shadowmount.txt`, and the relevant section of `/data/shadowmount/debug.log`.
 
-История изменений: [CHANGELOG.md](CHANGELOG.md).
+Full change history: [CHANGELOG.md](CHANGELOG.md).

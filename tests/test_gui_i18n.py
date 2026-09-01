@@ -2,44 +2,344 @@ from __future__ import annotations
 
 import ast
 import inspect
+import json
 import os
 import sys
 from pathlib import Path
+from string import Formatter
 
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QPalette
+from PySide6.QtWidgets import QApplication, QFrame
 
-from ps4ffpsc import gui
+from ps4ffpsc import gui, gui_model
 from ps4ffpsc.gui import BUILD_STAGE_KEYS, MKPFS_PHASE_KEYS, TEXTS, MainWindow
+from ps4ffpsc.i18n import (
+    locale_display_name,
+    load_locale_catalogs,
+    system_languages_or_english,
+    system_locale_or_english,
+    translate_catalog,
+)
 from ps4ffpsc.runtime import (
     default_compression_worker_count,
     maximum_logical_cpu_count,
 )
 
 
+def _literal_translation_keys(node: ast.expr) -> set[str]:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return {node.value}
+    if isinstance(node, ast.IfExp):
+        return _literal_translation_keys(node.body) | _literal_translation_keys(
+            node.orelse
+        )
+    return set()
+
+
 def test_translation_catalogs_have_identical_keys() -> None:
-    assert set(TEXTS["ru"]) == set(TEXTS["en"])
+    assert {"ru", "en", "zh_CN"} <= set(TEXTS)
+    english_keys = set(TEXTS["en"])
+    assert english_keys
+    for catalog in TEXTS.values():
+        assert set(catalog) == english_keys
+
+
+def test_translation_catalogs_preserve_format_placeholders() -> None:
+    formatter = Formatter()
+
+    def placeholders(text: str) -> tuple[tuple[str, str, str], ...]:
+        return tuple(
+            (field_name, format_spec, conversion or "")
+            for _, field_name, format_spec, conversion in formatter.parse(text)
+            if field_name is not None
+        )
+
+    for key, english_text in TEXTS["en"].items():
+        expected = placeholders(english_text)
+        for locale, catalog in TEXTS.items():
+            assert placeholders(catalog[key]) == expected, (locale, key)
+
+
+def test_locale_loader_preserves_preferred_order_and_supports_custom_catalogs(
+    tmp_path: Path,
+) -> None:
+    for locale, text in (
+        ("en", "English"),
+        ("ru", "Русский"),
+        ("zh_CN", "简体中文"),
+        ("de", "Deutsch"),
+    ):
+        (tmp_path / f"{locale}.json").write_text(
+            json.dumps({"sample": text}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+    catalogs = load_locale_catalogs(tmp_path)
+
+    assert tuple(catalogs) == ("ru", "en", "de", "zh_CN")
+    assert catalogs["zh_CN"]["sample"] == "简体中文"
+    assert locale_display_name("zh_CN") == "简体中文"
+    assert locale_display_name("de") == "de"
+
+
+@pytest.mark.parametrize(
+    ("system_name", "expected"),
+    [
+        ("ru_RU", "ru"),
+        ("en_US", "en"),
+        ("zh_CN", "zh_CN"),
+        ("zh-Hans-CN", "zh_CN"),
+        ("zh_TW", "en"),
+        ("de_DE", "en"),
+    ],
+)
+def test_first_launch_uses_system_locale_or_english(
+    system_name: str,
+    expected: str,
+) -> None:
+    assert system_locale_or_english(TEXTS, system_name) == expected
+
+
+def test_ordered_system_ui_languages_precede_the_regional_locale() -> None:
+    assert system_languages_or_english(
+        TEXTS,
+        ("de-DE", "zh-Hans-CN", "en-US"),
+    ) == "zh_CN"
+
+
+def test_main_window_uses_ordered_system_ui_languages_on_first_launch(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    class FakeSystemLocale:
+        def uiLanguages(self) -> list[str]:
+            return ["zh-Hans-CN", "en-US"]
+
+        def name(self) -> str:
+            return "en_US"
+
+    monkeypatch.setattr(gui, "QLocale", FakeSystemLocale)
+    app = QApplication.instance() or QApplication([])
+    app.setApplicationName("PS4 FFPFSC system UI language test")
+    app.setOrganizationName("ps4ffpsc-tests")
+    settings = QSettings()
+    settings.clear()
+
+    window = MainWindow(tmp_path, Path(__file__).resolve().parents[1])
+
+    assert window.language == "zh_CN"
+    assert window.language_combo.currentData() == "zh_CN"
+    assert window.scan_button.text() == TEXTS["zh_CN"]["scan"]
+    window.close()
+    settings.clear()
+
+
+@pytest.mark.parametrize(
+    ("filename", "content"),
+    [
+        ("malformed.json", "{"),
+        ("non_object.json", "[]"),
+        ("non_string.json", '{"sample": 1}'),
+    ],
+)
+def test_invalid_locale_files_are_ignored(
+    tmp_path: Path,
+    filename: str,
+    content: str,
+) -> None:
+    (tmp_path / "en.json").write_text('{"sample": "English"}', encoding="utf-8")
+    (tmp_path / filename).write_text(content, encoding="utf-8")
+
+    catalogs = load_locale_catalogs(tmp_path)
+
+    assert tuple(catalogs) == ("en",)
+    assert catalogs["en"] == {"sample": "English"}
+
+
+def test_non_utf8_locale_file_is_ignored(tmp_path: Path) -> None:
+    (tmp_path / "en.json").write_text('{"sample": "English"}', encoding="utf-8")
+    (tmp_path / "broken.json").write_bytes(b"\xff")
+
+    assert load_locale_catalogs(tmp_path) == {"en": {"sample": "English"}}
+
+
+def test_utf8_bom_locale_file_is_supported(tmp_path: Path) -> None:
+    (tmp_path / "en.json").write_text(
+        '{"sample": "English"}',
+        encoding="utf-8-sig",
+    )
+
+    assert load_locale_catalogs(tmp_path) == {"en": {"sample": "English"}}
+
+
+def test_invalid_english_catalog_keeps_safe_empty_fallback(tmp_path: Path) -> None:
+    (tmp_path / "en.json").write_text("{", encoding="utf-8")
+    (tmp_path / "ru.json").write_text(
+        '{"sample": "Русский"}',
+        encoding="utf-8",
+    )
+
+    catalogs = load_locale_catalogs(tmp_path)
+
+    assert catalogs == {"ru": {"sample": "Русский"}, "en": {}}
+    assert translate_catalog(catalogs, "en", "sample") == "sample"
+
+
+def test_missing_locale_directory_keeps_safe_english_fallback(tmp_path: Path) -> None:
+    catalogs = load_locale_catalogs(tmp_path / "missing")
+
+    assert catalogs == {"en": {}}
+    assert translate_catalog(catalogs, "ru", "missing_key") == "missing_key"
+
+
+def test_translation_uses_english_fallback_for_missing_or_broken_format() -> None:
+    catalogs = {
+        "en": {
+            "missing": "English fallback",
+            "formatted": "Hello {name}",
+        },
+        "zh_CN": {
+            "formatted": "损坏 {unknown}",
+        },
+    }
+
+    assert (
+        translate_catalog(catalogs, "zh_CN", "missing")
+        == "English fallback"
+    )
+    assert (
+        translate_catalog(catalogs, "zh_CN", "formatted", name="Ildar")
+        == "Hello Ildar"
+    )
+
+
+def test_language_switcher_discovers_custom_catalog(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    custom = dict(TEXTS["en"])
+    custom["scan"] = "扫描"
+    monkeypatch.setitem(TEXTS, "zh_CN", custom)
+    app = QApplication.instance() or QApplication([])
+    app.setApplicationName("PS4 FFPFSC custom locale test")
+    app.setOrganizationName("ps4ffpsc-tests")
+    settings = QSettings()
+    settings.clear()
+    settings.setValue("language", "zh_CN")
+
+    window = MainWindow(tmp_path, Path(__file__).resolve().parents[1])
+
+    assert window.language == "zh_CN"
+    assert window.language_combo.currentData() == "zh_CN"
+    assert window.language_combo.currentText() == "简体中文"
+    assert window.scan_button.text() == "扫描"
+    window.close()
+    settings.clear()
+
+
+def test_main_window_starts_when_packaged_locales_are_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(gui, "TEXTS", {"en": {}})
+    app = QApplication.instance() or QApplication([])
+    app.setApplicationName("PS4 FFPFSC missing locale test")
+    app.setOrganizationName("ps4ffpsc-tests")
+    settings = QSettings()
+    settings.clear()
+    settings.setValue("language", "missing")
+
+    window = MainWindow(tmp_path, Path(__file__).resolve().parents[1])
+
+    assert window.language == "en"
+    assert window.language_combo.currentData() == "en"
+    assert window.scan_button.text() == "scan"
+    window.close()
+    settings.clear()
+
+
+def test_combo_popups_have_dark_containers_without_native_margins(
+    tmp_path: Path,
+) -> None:
+    app = QApplication.instance() or QApplication([])
+    app.setApplicationName("PS4 FFPFSC combo popup test")
+    app.setOrganizationName("ps4ffpsc-tests")
+    settings = QSettings()
+    settings.clear()
+    window = MainWindow(tmp_path, Path(__file__).resolve().parents[1])
+
+    for combo in (
+        window.language_combo,
+        window.output_format_combo,
+        window.compression_combo,
+        window.dlc_combo,
+    ):
+        view = combo.view()
+        popup = view.window()
+        margins = popup.contentsMargins()
+        assert view.frameShape() == QFrame.Shape.NoFrame
+        assert popup.objectName() == "comboPopup"
+        assert (margins.left(), margins.top(), margins.right(), margins.bottom()) == (
+            0,
+            0,
+            0,
+            0,
+        )
+        assert popup.testAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        assert (
+            popup.palette().color(QPalette.ColorRole.Window).name()
+            == "#181e27"
+        )
+
+    window.close()
+    settings.clear()
 
 
 def test_every_literal_translation_key_exists() -> None:
-    tree = ast.parse(inspect.getsource(gui))
-    referenced = {
-        call.args[0].value
-        for call in ast.walk(tree)
-        if isinstance(call, ast.Call)
-        and isinstance(call.func, ast.Attribute)
-        and call.func.attr in {"_t", "_bind_text", "_set_stage", "_set_summary"}
-        and call.args
-        and isinstance(call.args[0], ast.Constant)
-        and isinstance(call.args[0].value, str)
-    }
+    trees = (
+        ast.parse(inspect.getsource(gui)),
+        ast.parse(inspect.getsource(gui_model)),
+    )
+    referenced: set[str] = set()
+    for tree in trees:
+        for call in (node for node in ast.walk(tree) if isinstance(node, ast.Call)):
+            key_index: int | None = None
+            if isinstance(call.func, ast.Attribute):
+                if call.func.attr == "_bind_text":
+                    key_index = 1
+                elif call.func.attr in {"_t", "_set_stage", "_set_summary"}:
+                    key_index = 0
+            elif isinstance(call.func, ast.Name) and call.func.id == "translate":
+                key_index = 0
+            if key_index is None or len(call.args) <= key_index:
+                continue
+            referenced.update(_literal_translation_keys(call.args[key_index]))
     referenced.update(BUILD_STAGE_KEYS.values())
     referenced.update(MKPFS_PHASE_KEYS.values())
-    assert referenced <= set(TEXTS["ru"])
+    referenced.update(gui_model.GAME_BLOCK_REASON_KEYS.values())
+    referenced.update(
+        {
+            "dlc_mode_off",
+            "dlc_mode_single_experimental",
+            "format_exfat",
+            "format_ffpfsc",
+            "type_backport",
+            "type_base",
+            "type_dlc",
+            "type_patch",
+            "type_patch_tree",
+            "type_pkg",
+            "type_tree",
+            "type_unknown",
+            "type_unsupported",
+        }
+    )
+    assert referenced <= set(TEXTS["en"])
 
 
 def test_language_switch_retranslates_static_and_live_progress(
@@ -84,6 +384,76 @@ def test_language_switch_retranslates_static_and_live_progress(
     assert "сжатие" in window.stage_label.text()
     assert window.time_label.text().startswith("Прошло ")
     window.progress_timer.stop()
+    window.close()
+    settings.clear()
+
+
+def test_chinese_catalog_translates_inventory_headers_and_type_labels(
+    tmp_path: Path,
+) -> None:
+    app = QApplication.instance() or QApplication([])
+    app.setApplicationName("PS4 FFPFSC Chinese inventory i18n test")
+    app.setOrganizationName("ps4ffpsc-tests")
+    settings = QSettings()
+    settings.clear()
+    settings.setValue("language", "zh_CN")
+    window = MainWindow(tmp_path, Path(__file__).resolve().parents[1])
+    base = {
+        "path": str(tmp_path / "base.pkg"),
+        "size": 4,
+        "supported": True,
+        "kind": "base",
+        "app_version": "01.00",
+    }
+    unsupported = {
+        "path": str(tmp_path / "encrypted.pkg"),
+        "size": 2,
+        "supported": False,
+        "reason": "encrypted",
+    }
+    window.inventory = {
+        "packages": [base, unsupported],
+        "unsupported": [unsupported],
+        "games": {
+            "CUSA12345": {
+                "title": "测试游戏",
+                "base": [base],
+                "patches": [],
+                "dlc": [],
+                "unknown": [],
+                "buildable": True,
+                "conflicts": [],
+                "warnings": [],
+            }
+        },
+    }
+
+    window._populate_inventory()
+
+    header = window.games_tree.headerItem()
+    assert header.text(4) == "补丁"
+    assert header.text(5) == "追加内容"
+    assert window.games_tree.topLevelItem(0).child(0).text(1) == "基础版"
+    assert window.games_tree.topLevelItem(1).text(1) == "不支持"
+    assert window.games_tree.topLevelItem(1).child(0).text(1) == "PKG 包"
+    window.close()
+    settings.clear()
+
+
+def test_chinese_catalog_formats_selected_pkg_count(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    app.setApplicationName("PS4 FFPFSC Chinese source count i18n test")
+    app.setOrganizationName("ps4ffpsc-tests")
+    settings = QSettings()
+    settings.clear()
+    settings.setValue("language", "zh_CN")
+    window = MainWindow(tmp_path, Path(__file__).resolve().parents[1])
+    window.source_mode = "files"
+    window.pkg_files = (tmp_path / "base.pkg", tmp_path / "patch.pkg")
+
+    window._update_source_label()
+
+    assert window.source_label.text() == "已选择 2 个 PKG：base.pkg, patch.pkg"
     window.close()
     settings.clear()
 
@@ -360,6 +730,7 @@ def test_dump_gui_rejects_output_inside_source_before_creating_it(
     app.setOrganizationName("ps4ffpsc-tests")
     settings = QSettings()
     settings.clear()
+    settings.setValue("language", "zh_CN")
     dump_root = tmp_path / "dump"
     game_tree = dump_root / "app"
     game_tree.mkdir(parents=True)
@@ -401,7 +772,7 @@ def test_dump_gui_rejects_output_inside_source_before_creating_it(
     window._start_build()
 
     assert started == []
-    assert errors and "must not be inside" in errors[0][1]
+    assert errors and errors[0][1] == TEXTS["zh_CN"]["output_inside_dump_source"]
     assert not output_inside_source.exists()
     window.close()
     settings.clear()

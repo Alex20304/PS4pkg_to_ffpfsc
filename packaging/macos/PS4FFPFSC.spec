@@ -7,6 +7,7 @@ ROOT = Path(SPECPATH).parents[1]
 HELPER = ROOT / "build-release" / "helper" / "tools" / "ps4_pkg_extract" / "ps4_pkg_extract"
 DLC_HELPER = ROOT / "build-release" / "dlc-helper" / "ps4-dlc-patch"
 ICON = ROOT / "build-release" / "AppIcon.icns"
+LOCALES = ROOT / "tools" / "ps4ffpsc" / "ps4ffpsc" / "locales"
 
 hidden = collect_submodules("mkpfs") + [
     "isal.isal_zlib",
@@ -25,6 +26,7 @@ a = Analysis(
         (str(ROOT / "LICENSE"), "."),
         (str(ROOT / "THIRD_PARTY_NOTICES.md"), "."),
         (str(ROOT / "LICENSES"), "LICENSES"),
+        (str(LOCALES), "ps4ffpsc/locales"),
     ],
     hiddenimports=hidden,
     hookspath=[],
@@ -76,8 +78,8 @@ app = BUNDLE(
     info_plist={
         "CFBundleDisplayName": "PS4 FFPFSC",
         "CFBundleName": "PS4 FFPFSC",
-        "CFBundleShortVersionString": "0.2.8",
-        "CFBundleVersion": "9",
+        "CFBundleShortVersionString": "0.2.9",
+        "CFBundleVersion": "10",
         "LSMinimumSystemVersion": "13.0",
         "NSHighResolutionCapable": True,
         "NSRequiresAquaSystemAppearance": False,

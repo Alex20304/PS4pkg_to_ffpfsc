@@ -347,6 +347,53 @@ def package_destination(root: Path, package: dict[str, Any]) -> Path:
     return root / "packages" / "unknown" / short_hash
 
 
+def extractor_partial_destination(
+    settings: Settings,
+    game: dict[str, Any],
+    package: dict[str, Any],
+    destination: Path,
+    *,
+    platform_name: str | None = None,
+) -> Path:
+    default = destination.with_name(f"{destination.name}.partial")
+    current_platform = sys.platform if platform_name is None else platform_name
+    if current_platform != "win32" or str(default).isascii():
+        return default
+
+    # Keep the stable/resumable game workspace unchanged, but do not pass a
+    # generated non-ASCII title directory to the Windows extractor. The
+    # verified tree is atomically moved into its ordinary Unicode destination.
+    title_id = str(game.get("title_id", ""))
+    if not validate_title_id(title_id):
+        return default
+    identity = str(
+        package.get("source_id")
+        or package.get("scan_id")
+        or package.get("sha256")
+        or "package"
+    )
+    short_hash = identity.removeprefix("stat-").removeprefix("scan-")[:12]
+    package_kind = str(package.get("kind", "unknown"))
+    filename = f"{package_kind}-{short_hash}.partial"
+    return settings.unpacked_dir / "_extractor_staging" / title_id / filename
+
+
+def _remove_empty_extractor_staging(
+    settings: Settings,
+    partial: Path,
+) -> None:
+    staging_root = settings.unpacked_dir / "_extractor_staging"
+    try:
+        partial.relative_to(staging_root)
+    except ValueError:
+        return
+    for candidate in (partial.parent, staging_root):
+        try:
+            candidate.rmdir()
+        except OSError:
+            pass
+
+
 def _selected_dlc_packages(
     settings: Settings,
     game: dict[str, Any],
@@ -673,9 +720,14 @@ def unpack_game(settings: Settings, inventory: dict[str, Any], title_id: str) ->
             safe_remove_tree(destination, root)
         if destination.exists() and not settings.force:
             raise FileExistsError(f"extraction destination exists; use --force: {destination}")
-        partial = destination.with_name(f"{destination.name}.partial")
+        partial = extractor_partial_destination(
+            settings,
+            game,
+            package,
+            destination,
+        )
         if partial.exists():
-            safe_remove_tree(partial, root)
+            safe_remove_tree(partial, settings.unpacked_dir)
         if destination.exists():
             safe_remove_tree(destination, root)
         if settings.dry_run:
@@ -759,7 +811,8 @@ def unpack_game(settings: Settings, inventory: dict[str, Any], title_id: str) ->
             }
             _save_state(root, state)
             if partial.exists():
-                safe_remove_tree(partial, root)
+                safe_remove_tree(partial, settings.unpacked_dir)
+            _remove_empty_extractor_staging(settings, partial)
             raise RuntimeError(
                 f"extractor failed ({process.returncode}) for {package['path']}: "
                 f"{process.stdout.strip() or process.stderr.strip()}"
@@ -776,7 +829,8 @@ def unpack_game(settings: Settings, inventory: dict[str, Any], title_id: str) ->
                     "error": str(error),
                 }
                 _save_state(root, state)
-                safe_remove_tree(partial, root)
+                safe_remove_tree(partial, settings.unpacked_dir)
+                _remove_empty_extractor_staging(settings, partial)
                 raise RuntimeError(
                     "extracted PKG has invalid sce_sys/npbind.dat: "
                     f"{package['path']}: {error}"
@@ -788,7 +842,9 @@ def unpack_game(settings: Settings, inventory: dict[str, Any], title_id: str) ->
             )
         manifest = tree_stat_manifest(partial)
         signature = tree_stat_signature(manifest)
+        destination.parent.mkdir(parents=True, exist_ok=True)
         os.replace(partial, destination)
+        _remove_empty_extractor_staging(settings, partial)
         record = {
             "status": "verified",
             "source_path": package["path"],
@@ -1378,6 +1434,8 @@ def mkpfs_command(settings: Settings) -> list[str]:
 def mkpfs_compression_arguments(
     settings: Settings,
     worker_count: int | None = None,
+    *,
+    platform_name: str | None = None,
 ) -> list[str]:
     level = int(settings.compression_level)
     if not 0 <= level <= 9:
@@ -1386,12 +1444,20 @@ def mkpfs_compression_arguments(
         settings.compression_workers if worker_count is None else worker_count,
         maximum_logical_cpu_count(),
     )
-    return [
+    arguments = [
         "--cpu-count",
         str(workers),
         "--compression-level",
         str(level),
     ]
+    current_platform = sys.platform if platform_name is None else platform_name
+    if current_platform == "win32":
+        # Preserve Unicode output names and keep compressed Windows builds on
+        # the reference implementation.  The reported failure happens during
+        # PFSC decompression, not while opening the path; lossy title rewriting
+        # would therefore hide valid names without addressing the data stream.
+        arguments.extend(["--compression-backend", "zlib"])
+    return arguments
 
 
 def _run_captured(

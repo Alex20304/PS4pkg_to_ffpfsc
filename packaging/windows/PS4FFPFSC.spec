@@ -9,6 +9,7 @@ HELPER = BUILD_ROOT / "helper" / "tools" / "ps4_pkg_extract" / "ps4_pkg_extract.
 DLC_HELPER = BUILD_ROOT / "dlc-helper" / "ps4-dlc-patch.exe"
 ICON = BUILD_ROOT / "AppIcon.ico"
 VERSION_FILE = ROOT / "packaging" / "windows" / "version_info.txt"
+LOCALES = ROOT / "tools" / "ps4ffpsc" / "ps4ffpsc" / "locales"
 
 hidden = collect_submodules("mkpfs") + [
     "isal.isal_zlib",
@@ -27,6 +28,7 @@ a = Analysis(
         (str(ROOT / "LICENSE"), "."),
         (str(ROOT / "THIRD_PARTY_NOTICES.md"), "."),
         (str(ROOT / "LICENSES"), "LICENSES"),
+        (str(LOCALES), "ps4ffpsc/locales"),
     ],
     hiddenimports=hidden,
     hookspath=[],

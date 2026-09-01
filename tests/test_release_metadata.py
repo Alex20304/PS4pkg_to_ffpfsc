@@ -9,8 +9,8 @@ from ps4ffpsc.gui import APP_VERSION
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CURRENT_VERSION = "0.2.8"
-RELEASE_VERSIONS = tuple(f"0.2.{patch}" for patch in range(9))
+CURRENT_VERSION = "0.2.9"
+RELEASE_VERSIONS = tuple(f"0.2.{patch}" for patch in range(10))
 
 
 def test_current_version_is_consistent_across_application_and_packaging() -> None:
@@ -34,11 +34,11 @@ def test_current_version_is_consistent_across_application_and_packaging() -> Non
         ),
         "packaging/macos/PS4FFPFSC.spec": (
             f'"CFBundleShortVersionString": "{CURRENT_VERSION}"',
-            '"CFBundleVersion": "9"',
+            '"CFBundleVersion": "10"',
         ),
         "packaging/windows/version_info.txt": (
-            "filevers=(0, 2, 8, 0)",
-            "prodvers=(0, 2, 8, 0)",
+            "filevers=(0, 2, 9, 0)",
+            "prodvers=(0, 2, 9, 0)",
             f"StringStruct('FileVersion', '{CURRENT_VERSION}')",
             f"StringStruct('ProductVersion', '{CURRENT_VERSION}')",
         ),
@@ -46,7 +46,7 @@ def test_current_version_is_consistent_across_application_and_packaging() -> Non
             f"PS4-FFPFSC-v{CURRENT_VERSION}-macos-arm64.zip",
             f"PS4-FFPFSC-v{CURRENT_VERSION}-windows-x64.zip",
         ),
-        "README_EN.md": (
+        "README_RU.md": (
             f"PS4-FFPFSC-v{CURRENT_VERSION}-macos-arm64.zip",
             f"PS4-FFPFSC-v{CURRENT_VERSION}-windows-x64.zip",
         ),
@@ -101,6 +101,33 @@ def test_release_scripts_package_the_unified_current_release_notes() -> None:
     assert "& $BundledDlcHelper --check-template" in windows_script
     assert '"dlc-helper-template.json"' in windows_script
     assert "Remove-Item $ReleaseRoot -Recurse" not in windows_script
+
+
+def test_pyinstaller_bundles_standalone_locale_catalogs() -> None:
+    expected_source = (
+        'ROOT / "tools" / "ps4ffpsc" / "ps4ffpsc" / "locales"'
+    )
+    for relative in (
+        "packaging/macos/PS4FFPFSC.spec",
+        "packaging/windows/PS4FFPFSC.spec",
+    ):
+        spec = (ROOT / relative).read_text(encoding="utf-8")
+        assert expected_source in spec
+        assert '(str(LOCALES), "ps4ffpsc/locales")' in spec
+
+    macos_audit = (ROOT / "scripts" / "audit_macos_app.sh").read_text(
+        encoding="utf-8"
+    )
+    assert "Contents/Resources/ps4ffpsc/locales/${locale}.json" in macos_audit
+    assert "for locale in en ru zh_CN" in macos_audit
+    assert 'cmp -s "${source_locale}" "${locale_path}"' in macos_audit
+
+    windows_audit = (ROOT / "scripts" / "audit_windows_x64.py").read_text(
+        encoding="utf-8"
+    )
+    for locale in ("en", "ru", "zh_CN"):
+        assert f'bundled_locales / "{locale}.json"' in windows_audit
+    assert "source.read_bytes() != bundled.read_bytes()" in windows_audit
 
 
 def test_experimental_dlc_build_inputs_are_pinned_and_attributed() -> None:

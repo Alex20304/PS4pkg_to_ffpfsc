@@ -34,6 +34,115 @@ def _settings(root: Path) -> Settings:
     )
 
 
+def test_windows_non_ascii_title_uses_ascii_extractor_staging_path(
+    tmp_path: Path,
+) -> None:
+    settings = _settings(tmp_path)
+    game = {
+        "title_id": "CUSA13801",
+        "directory_name": "CUSA13801 - Sekiro™_ Shadows Die Twice",
+    }
+    package = {
+        "kind": "base",
+        "source_id": "stat-" + "a" * 64,
+    }
+    destination = (
+        settings.unpacked_dir
+        / game["directory_name"]
+        / "packages"
+        / "base"
+        / ("a" * 12)
+    )
+
+    assert pipeline.extractor_partial_destination(
+        settings,
+        game,
+        package,
+        destination,
+        platform_name="win32",
+    ) == (
+        settings.unpacked_dir
+        / "_extractor_staging"
+        / "CUSA13801"
+        / f"base-{'a' * 12}.partial"
+    )
+    assert pipeline.extractor_partial_destination(
+        settings,
+        game,
+        package,
+        destination,
+        platform_name="darwin",
+    ) == destination.with_name(f"{destination.name}.partial")
+
+
+def test_windows_non_ascii_title_is_moved_from_ascii_extractor_staging(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = _settings(tmp_path)
+    source = tmp_path / "source.pkg"
+    source.write_bytes(b"large source placeholder")
+    inventory = _inventory(source)
+    game = inventory["games"]["CUSA12345"]
+    game["title"] = "Sekiro\u2122: Shadows Die Twice"
+    game["directory_name"] = "CUSA12345 - Sekiro\u2122_ Shadows Die Twice"
+    monkeypatch.setattr(pipeline, "check_disk_space", lambda *_args: None)
+    monkeypatch.setattr(
+        pipeline,
+        "extractor_or_raise",
+        lambda *_args: tmp_path / "extractor",
+    )
+    original_partial_destination = pipeline.extractor_partial_destination
+
+    def windows_partial_destination(
+        current_settings: Settings,
+        current_game: dict,
+        package: dict,
+        destination: Path,
+    ) -> Path:
+        return original_partial_destination(
+            current_settings,
+            current_game,
+            package,
+            destination,
+            platform_name="win32",
+        )
+
+    monkeypatch.setattr(
+        pipeline,
+        "extractor_partial_destination",
+        windows_partial_destination,
+    )
+    extractor_outputs: list[Path] = []
+
+    def fake_extract(
+        command: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        destination = Path(command[command.index("--output") + 1])
+        extractor_outputs.append(destination)
+        destination.mkdir(parents=True)
+        (destination / "payload.bin").write_bytes(b"extracted")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(pipeline, "_run_captured", fake_extract)
+
+    manifest = pipeline.unpack_game(settings, inventory, "CUSA12345")
+
+    assert len(extractor_outputs) == 1
+    assert extractor_outputs[0].is_relative_to(
+        settings.unpacked_dir / "_extractor_staging" / "CUSA12345"
+    )
+    assert str(
+        extractor_outputs[0].relative_to(settings.unpacked_dir)
+    ).isascii()
+    final_destination = Path(manifest["extractions"][0]["destination"])
+    assert final_destination.is_relative_to(
+        settings.unpacked_dir / game["directory_name"]
+    )
+    assert (final_destination / "payload.bin").read_bytes() == b"extracted"
+    assert not (settings.unpacked_dir / "_extractor_staging").exists()
+
+
 def _inventory(source: Path) -> dict:
     base = {
         "kind": "base",
@@ -444,7 +553,10 @@ def test_mkpfs_compression_arguments_use_selected_level_and_default_half_cpus(
         lambda: 20,
     )
 
-    assert pipeline.mkpfs_compression_arguments(settings) == [
+    assert pipeline.mkpfs_compression_arguments(
+        settings,
+        platform_name="darwin",
+    ) == [
         "--cpu-count",
         "10",
         "--compression-level",
@@ -452,11 +564,44 @@ def test_mkpfs_compression_arguments_use_selected_level_and_default_half_cpus(
     ]
 
     settings.compression_workers = 7
-    assert pipeline.mkpfs_compression_arguments(settings) == [
+    assert pipeline.mkpfs_compression_arguments(
+        settings,
+        platform_name="darwin",
+    ) == [
         "--cpu-count",
         "7",
         "--compression-level",
         "3",
+    ]
+
+
+def test_mkpfs_compression_arguments_use_reference_zlib_on_windows(
+    tmp_path: Path,
+) -> None:
+    settings = _settings(tmp_path)
+    settings.compression_level = 3
+    settings.compression_workers = 7
+    assert pipeline.mkpfs_compression_arguments(
+        settings, platform_name="win32"
+    ) == [
+        "--cpu-count",
+        "7",
+        "--compression-level",
+        "3",
+        "--compression-backend",
+        "zlib",
+    ]
+
+    settings.compression_level = 0
+    assert pipeline.mkpfs_compression_arguments(
+        settings, platform_name="win32"
+    ) == [
+        "--cpu-count",
+        "7",
+        "--compression-level",
+        "0",
+        "--compression-backend",
+        "zlib",
     ]
 
 

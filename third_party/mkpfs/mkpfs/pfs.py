@@ -1209,16 +1209,26 @@ def _init_pfsc_block_worker(*, source_path: Path) -> None:
     _PFSC_WORKER_SOURCE_HANDLE = source_path.open("rb")
 
 
-def _init_pfsc_block_worker_for_pool(source_path: Path) -> None:
+def _init_pfsc_block_worker_for_pool(
+    source_path: Path,
+    backend_name: str,
+) -> None:
     """Initialize per-process PFSC worker state for a multiprocessing pool.
 
     Args:
         source_path: Source file path shared by all block jobs in the pool.
+        backend_name: Compression backend selected by the parent process.
     """
     _init_pfsc_block_worker(source_path=source_path)
-    # Ensure compression backend in child process matches the parent selection.
-    with suppress(Exception):
-        comp.init_worker(comp.get_backend_name())
+    # Windows uses the multiprocessing ``spawn`` start method, so module state
+    # is imported from scratch in each child. Pass the parent's explicit
+    # backend instead of asking the fresh child which backend it auto-selected.
+    comp.init_worker(backend_name)
+
+
+def _compression_worker_initargs() -> tuple[str]:
+    """Capture the parent's backend for a spawned compression worker."""
+    return (comp.get_backend_name(),)
 
 
 def _read_pfsc_block_from_worker_handle(*, block_offset: int, logical_block_size: int) -> bytes:
@@ -1375,7 +1385,7 @@ def _analyze_pfsc_file_storage(
         with mp.Pool(
             processes=effective_block_workers,
             initializer=_init_pfsc_block_worker_for_pool,
-            initargs=(abs_path,),
+            initargs=(abs_path, comp.get_backend_name()),
         ) as pool:
             results_iter = pool.imap(_compress_pfsc_block_lengths_worker, worker_args_iter, chunksize=1)
             raw_block_len: int
@@ -1667,7 +1677,7 @@ def _encode_pfsc_into_handle(
         with mp.Pool(
             processes=effective_block_workers,
             initializer=_init_pfsc_block_worker_for_pool,
-            initargs=(source_path,),
+            initargs=(source_path, comp.get_backend_name()),
         ) as pool:
             pending: deque[AsyncResult[tuple[bytes, bytes]]] = deque()
             for worker_args in worker_args_iter:
@@ -3329,7 +3339,11 @@ def build_pfs(
                         )
                         for f in compression_file_nodes
                     ]
-                    with mp.Pool(processes=worker_count) as pool:
+                    with mp.Pool(
+                        processes=worker_count,
+                        initializer=comp.init_worker,
+                        initargs=_compression_worker_initargs(),
+                    ) as pool:
                         results = pool.imap_unordered(_compute_file_storage_worker, worker_args, chunksize=1)
                         remaining_results: int = len(worker_args)
                         while remaining_results > 0:
@@ -3408,7 +3422,11 @@ def build_pfs(
                     )
                     for f in compression_file_nodes
                 ]
-                with mp.Pool(processes=worker_count) as pool:
+                with mp.Pool(
+                    processes=worker_count,
+                    initializer=comp.init_worker,
+                    initargs=_compression_worker_initargs(),
+                ) as pool:
                     results = pool.imap_unordered(_compute_file_storage_worker, worker_args, chunksize=1)
                     remaining_results = len(worker_args)
                     while remaining_results > 0:
